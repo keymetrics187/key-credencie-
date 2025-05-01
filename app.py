@@ -22,7 +22,7 @@ def atualizar_checkin_google(nome, checkin_status):
     lista_nomes = worksheet.col_values(1)
     for idx, nome_planilha in enumerate(lista_nomes):
         if nome_planilha.strip().lower() == nome.strip().lower():
-            worksheet.update_cell(idx + 1, 4, checkin_status)
+            worksheet.update_cell(idx + 1, 33, checkin_status)  # coluna AG
             break
 
 def leitor_qr_html():
