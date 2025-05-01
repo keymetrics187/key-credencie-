@@ -12,18 +12,23 @@ def carregar_dados():
     return df
 
 def atualizar_checkin_google(nome, checkin_status):
-    creds_dict = json.loads(st.secrets["google"]["credentials"])
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    gc = gspread.authorize(credentials)
+    try:
+        creds_dict = json.loads(st.secrets["google"]["credentials"])
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        gc = gspread.authorize(credentials)
 
-    sh = gc.open_by_key('1ZsHsE0OVq9v_gHiYuSkkkXv6IElW0QA6zpD3eBUQNs0')
-    worksheet = sh.worksheet('Página1')
-    lista_nomes = worksheet.col_values(1)
-    for idx, nome_planilha in enumerate(lista_nomes):
-        if nome_planilha.strip().lower() == nome.strip().lower():
-            worksheet.update_cell(idx + 1, 33, checkin_status)  # coluna AG
-            break
+        sh = gc.open_by_key('1ZsHsE0OVq9v_gHiYuSkkkXv6IElW0QA6zpD3eBUQNs0')
+        worksheet = sh.worksheet('Página1')
+        lista_nomes = worksheet.col_values(1)
+        for idx, nome_planilha in enumerate(lista_nomes):
+            if nome_planilha.strip().lower() == nome.strip().lower():
+                worksheet.update_cell(idx + 1, 33, checkin_status)  # coluna AG
+                return True
+        return False
+    except Exception as e:
+        st.error(f"Erro ao salvar na planilha: {e}")
+        return False
 
 def leitor_qr_html():
     html_code = '''
@@ -71,10 +76,13 @@ if qr_code:
     pessoa = df[df['eTicket'].astype(str).str.strip() == qr_code.strip()]
     if not pessoa.empty:
         nome = pessoa.iloc[0]['Nome']
-        st.success(f"✅ Check-in feito para {nome}")
         idx = pessoa.index[0]
         st.session_state.df_participantes.loc[idx, 'Checkin'] = 'Sim'
-        atualizar_checkin_google(nome, 'Sim')
+        sucesso = atualizar_checkin_google(nome, 'Sim')
+        if sucesso:
+            st.success(f"✅ Check-in feito e salvo com sucesso para {nome}")
+        else:
+            st.error("⚠️ Check-in não foi salvo. Verifique a planilha.")
     else:
         st.error("⚠️ QR Code não encontrado na lista.")
     st.session_state.mostrar_scanner = False
@@ -108,7 +116,11 @@ for idx, participante in faltantes_view.iterrows():
         with col2:
             if st.button("Fazer Check-in", key=f"checkin_{idx}"):
                 st.session_state.df_participantes.loc[idx, 'Checkin'] = 'Sim'
-                atualizar_checkin_google(participante['Nome'], 'Sim')
+                sucesso = atualizar_checkin_google(participante['Nome'], 'Sim')
+                if sucesso:
+                    st.success(f"✅ Check-in salvo com sucesso para {participante['Nome']}")
+                else:
+                    st.error("⚠️ Falha ao salvar na planilha.")
                 st.rerun()
 
 st.markdown("---")
@@ -125,5 +137,9 @@ for idx, participante in credenciados_view.iterrows():
         with col2:
             if st.button("Desfazer Check-in", key=f"desfazer_{idx}"):
                 st.session_state.df_participantes.loc[idx, 'Checkin'] = 'Não'
-                atualizar_checkin_google(participante['Nome'], 'Não')
+                sucesso = atualizar_checkin_google(participante['Nome'], 'Não')
+                if sucesso:
+                    st.success(f"✅ Check-in desfeito para {participante['Nome']}")
+                else:
+                    st.error("⚠️ Falha ao atualizar a planilha.")
                 st.rerun()
